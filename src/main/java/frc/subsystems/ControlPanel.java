@@ -33,12 +33,13 @@ class ControlPanel{
 
 import frc.subsystems.GoalFlow;
 
-public class ControlPanel extends GoalFlow{
-    public ControlPanel(){
+public class ControlPanel extends GoalFlow {
+    public ControlPanel() {
         super();
 
     }
+
     public void runGoal(Object... args) {
-        
+
     }
 }

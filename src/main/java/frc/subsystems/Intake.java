@@ -16,6 +16,7 @@ import frc.robot.RobotMap;
 import frc.states.intake.IntakeState;
 import frc.states.intake.LoweredState;
 import frc.states.intake.StowedState;
+import frc.states.intake.TurningState;
 import frc.utils.KingMathUtils;
 
 public class Intake extends StateSubsystem<IntakeState> {
@@ -23,20 +24,20 @@ public class Intake extends StateSubsystem<IntakeState> {
     private TalonSRX mIntakeAngle;
     private VictorSPX mIntake;
     private double mCurrentAngle = 0;
-    private CANCoder mAngleEncoder = new CANCoder(10);
     private static Intake instance;
 
     public static Intake getInstance() {
-        if(instance == null) {
-            instance = new Intake(new TalonSRX(RobotMap.INTAKE_ANGLE),new VictorSPX(RobotMap.INTAKE_SPEED));
+        if (instance == null) {
+            instance = new Intake(new TalonSRX(RobotMap.INTAKE_ANGLE), new VictorSPX(RobotMap.INTAKE_SPEED));
         }
         return instance;
     }
 
     /**
      * Ctor - Do not use unless for static builders or unit testing
+     * 
      * @param IntakeAngle Talon instance for intake angle
-     * @param intake Victor instance for intake speed
+     * @param intake      Victor instance for intake speed
      */
     public Intake(TalonSRX intakeAngle, VictorSPX intake) {
         mIntakeAngle = intakeAngle;
@@ -44,20 +45,19 @@ public class Intake extends StateSubsystem<IntakeState> {
 
         mIntakeAngle.setInverted(false);
         mIntakeAngle.setSensorPhase(false);
-        
-        mIntakeAngle.configRemoteFeedbackFilter(mAngleEncoder,0);
-        mIntakeAngle.configSelectedFeedbackSensor(FeedbackDevice.RemoteSensor0);
 
-        mIntakeAngle.configMotionCruiseVelocity(400); //max 800
-        mIntakeAngle.configMotionAcceleration(200);
-        mIntakeAngle.config_kF(0,1.123456879);
-        mIntakeAngle.config_kP(0,4);
-        mIntakeAngle.config_kD(0,27);
-        mIntakeAngle.config_kI(0,0.002821);
+        mIntakeAngle.configSelectedFeedbackSensor(FeedbackDevice.CTRE_MagEncoder_Relative);
+
+        mIntakeAngle.configMotionCruiseVelocity(25000); // max 800
+        mIntakeAngle.configMotionAcceleration(18000);
+        mIntakeAngle.config_kF(0, 0.0213125);
+        mIntakeAngle.config_kP(0, 0.04);
+        mIntakeAngle.config_kD(0, 0);
+        mIntakeAngle.config_kI(0, 0);
 
         addState("Stowed", new StowedState());
         addState("Lowered", new LoweredState());
-
+        addState("Turning", new TurningState());
         mCurrentState = mStates.get("Stowed");
         mDesiredState = mStates.get("Stowed");
 
@@ -72,7 +72,6 @@ public class Intake extends StateSubsystem<IntakeState> {
 
     public synchronized void resetEncoder() {
         mIntakeAngle.setSelectedSensorPosition(0);
-        mAngleEncoder.setPosition(0);
     }
 
     /**
@@ -86,25 +85,41 @@ public class Intake extends StateSubsystem<IntakeState> {
         setState("Lowered");
     }
 
+    public synchronized void liftToTurn() {
+        setState("Turning");
+    }
+
     public synchronized void stowIntake() {
         setState("Stowed");
     }
 
+    public synchronized void setIntakeAngleSpeed(double spd) {
+        mIntakeAngle.set(ControlMode.PercentOutput, spd);
+    }
+
+    public synchronized void setIntakeSpeed(double spd) {
+        mIntake.set(ControlMode.PercentOutput, spd);
+    }
+
     /**
      * returns the current state of the intake
+     * 
      * @return current state
      */
     public synchronized String getState() {
         return mCurrentState.name();
     }
 
+    public synchronized boolean atState() {
+        return mCurrentState == mDesiredState;
+    }
 
     @Override
     public void updateSmartDashboard() {
         SmartDashboard.putString("Intake/CurrentState", mCurrentState.name());
         SmartDashboard.putString("Intake/DesiredState", mDesiredState.name());
-        SmartDashboard.putNumber("Intake/AngleSpeed",mIntakeAngle.getSelectedSensorVelocity());
-        SmartDashboard.putNumber("Intake/Angle",mIntakeAngle.getSelectedSensorPosition());
+        SmartDashboard.putNumber("Intake/AngleSpeed", mIntakeAngle.getSelectedSensorVelocity());
+        SmartDashboard.putNumber("Intake/Angle", mIntakeAngle.getSelectedSensorPosition());
     }
 
     @Override
@@ -142,10 +157,10 @@ public class Intake extends StateSubsystem<IntakeState> {
 
     @Override
     protected void update() {
-        if (KingMathUtils.applyDeadband(mCurrentAngle, 50, 50, mDesiredState.intakeAngle()) != mDesiredState
+        if (KingMathUtils.applyDeadband(mCurrentAngle, 3000, 3000, mDesiredState.intakeAngle()) != mDesiredState
                 .intakeAngle()) {
             mIntakeAngle.set(ControlMode.MotionMagic, mDesiredState.intakeAngle());
-        } else if (KingMathUtils.applyDeadband(mCurrentAngle, 50, 50, mDesiredState.intakeAngle()) == mDesiredState
+        } else if (KingMathUtils.applyDeadband(mCurrentAngle, 3000, 3000, mDesiredState.intakeAngle()) == mDesiredState
                 .intakeAngle()) {
             mCurrentState = mDesiredState;
         }

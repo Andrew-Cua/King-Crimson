@@ -4,11 +4,12 @@ import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import firelib.looper.ILooper;
 import firelib.looper.Loop;
 import firelib.subsystem.ISubsystem;
+import frc.robot.Constants;
 import frc.utils.KingMathUtils;
 
 public class Superstructure implements ISubsystem {
     public enum SuperstructureTarget {
-        DEFENSE("Defense"), SHOOTING("Shooting"), INTAKING("Intaking");
+        DEFENSE("Defense"), SHOOTING("Shooting"), INTAKING("Intaking"), TURNING("TURNING");
 
         private String mName;
 
@@ -39,7 +40,7 @@ public class Superstructure implements ISubsystem {
     private Intake mIntake = Intake.getInstance();
     private Indexer mIndexer = Indexer.getInstance();
     private Shooter mShooter = Shooter.getInstance();
-
+    private SuperstructureAngle mSuperstructureAngle = SuperstructureAngle.getInstance();
     private SuperstructureTarget mCurrentTarget = SuperstructureTarget.DEFENSE;
     private SuperstructureTarget mDesiredTarget = SuperstructureTarget.DEFENSE;
 
@@ -56,32 +57,76 @@ public class Superstructure implements ISubsystem {
         return instance;
     }
 
+    public synchronized void setTarget(SuperstructureTarget target) {
+        mDesiredTarget = target;
+    }
+
+    /**
+     * setters for values from operator control
+     * 
+     */
+    public synchronized void setTurretAngle(double angle) {
+        mVals.turretAngle = angle;
+    }
+
+    public synchronized void setSuperstructureAngle(double angle) {
+        mVals.superstructureAngle = angle;
+    }
+
+    public synchronized void setShooterRPM(double rpm) {
+        mVals.shooterRPM = rpm;
+    }
+
+    public synchronized void runIntake(boolean run) {
+        mVals.runIntake = run;
+    }
+
+    public synchronized void enableVision(boolean enableVision) {
+        mVals.enableVision = enableVision;
+    }
+
+    public synchronized void flipTurret() {
+        if (mHome == TurretHomePosition.FRONT) {
+            mHome = TurretHomePosition.BACK;
+        } else if (mHome == TurretHomePosition.BACK) {
+            mHome = TurretHomePosition.FRONT;
+        }
+    }
+
     public void handleStateChange() {
+
         /**
          * command the robot initial state settings
          */
         switch (mDesiredTarget) {
-        case DEFENSE:
-            mShooter.setState(Shooter.ShooterStates.IDLE);
-            mTurret.setDesiredAngle(mHome.getAngle());
-            mTurret.setControlType(Turret.ControlType.POSITION_CLOSED_LOOP);
-            mIntake.stowIntake();
-            mIntake.stopIntake();
-            mIndexer.setIO(0);
-            break;
-        case INTAKING:
-            mShooter.setState(Shooter.ShooterStates.IDLE);
-            mTurret.setDesiredAngle(mHome.getAngle());
-            mTurret.setControlType(Turret.ControlType.POSITION_CLOSED_LOOP);
-            mIndexer.setIO(0);
-            break;
-        case SHOOTING:
-            mShooter.setState(Shooter.ShooterStates.SPINNING_UP);
-            mIntake.stowIntake();
-            mIntake.stopIntake();
-            mTurret.setDesiredAngle(mHome.getAngle());
-            mTurret.setControlType(Turret.ControlType.POSITION_CLOSED_LOOP);
-            break;
+            case DEFENSE:
+                mShooter.setState(Shooter.ShooterStates.IDLE);
+                mTurret.setDesiredAngle(mHome.getAngle());
+                mTurret.setControlType(Turret.ControlType.POSITION_CLOSED_LOOP);
+                mIntake.stowIntake();
+                mIntake.stopIntake();
+                mIndexer.setIO(0, 0);
+                break;
+            case INTAKING:
+                mShooter.setState(Shooter.ShooterStates.IDLE);
+                mTurret.setDesiredAngle(mHome.getAngle());
+                mTurret.setControlType(Turret.ControlType.POSITION_CLOSED_LOOP);
+                mIndexer.setIO(0.7, 0);
+                mIndexer.setControlType(Indexer.ControlType.POSITION_CLOSED_LOOP);
+                mSuperstructureAngle.setControlType(SuperstructureAngle.ControlType.POSITION_CLOSED_LOOP);
+                mSuperstructureAngle.setIO(0, 1000);
+                break;
+            case SHOOTING:
+                mShooter.setState(Shooter.ShooterStates.SPINNING_UP);
+                mIntake.stowIntake();
+                mIntake.stopIntake();
+                mTurret.setDesiredAngle(mHome.getAngle());
+                mTurret.setControlType(Turret.ControlType.POSITION_CLOSED_LOOP);
+                mIndexer.setIO(0, 0);
+                mIndexer.setControlType(Indexer.ControlType.OPEN_LOOP);
+                break;
+            case TURNING:
+                break;
 
         }
 
@@ -97,7 +142,7 @@ public class Superstructure implements ISubsystem {
         }
 
         if (mDesiredTarget == SuperstructureTarget.INTAKING
-                && KingMathUtils.applyDeadband(mTurret.getAngle(), 50, 50, mHome.getAngle()) == mHome.getAngle()) {
+                && KingMathUtils.applyDeadband(mTurret.getAngle(), 5, 5, mHome.getAngle()) == mHome.getAngle()) {
 
             mIntake.lowerIntake();
             mCurrentTarget = mDesiredTarget;
@@ -118,6 +163,10 @@ public class Superstructure implements ISubsystem {
         // TODO Auto-generated method stub
         SmartDashboard.putString("Superstructure/currentTarget", mCurrentTarget.getName());
         SmartDashboard.putString("Superstructure/desiredTarget", mDesiredTarget.getName());
+
+        SmartDashboard.putNumber("Superstructure/homePosition", mHome.getAngle());
+        SmartDashboard.putNumber("Superstructure/demandedTurretPositon", mVals.turretAngle);
+        SmartDashboard.putBoolean("Superstructure/enableVision", mVals.enableVision);
 
     }
 
@@ -152,27 +201,21 @@ public class Superstructure implements ISubsystem {
                     } else if (mCurrentTarget == mDesiredTarget) {
 
                         /**
-                         * target angnostic logic here
-                         */
-                            if (mVals.flipHomePosition) {
-                                if(mHome == TurretHomePosition.FRONT) {
-                                    mHome = TurretHomePosition.BACK;
-                                } else if (mHome == TurretHomePosition.BACK)
-                                {
-                                    mHome = TurretHomePosition.FRONT;
-                                }
-                                mVals.flipHomePosition = false;
-                            }
-
-
-                        /**
                          * shooting logic
                          */
                         if (mCurrentTarget == SuperstructureTarget.SHOOTING) {
+                            if (mVals.enableVision) {
+                                mTurret.setControlType(Turret.ControlType.VISION_CLOSED_LOOP);
+                                mSuperstructureAngle.setControlType(SuperstructureAngle.ControlType.VISION_CLOSED_LOOP);
+                            } else {
+                                mTurret.setControlType(Turret.ControlType.POSITION_CLOSED_LOOP);
+                                mSuperstructureAngle
+                                        .setControlType(SuperstructureAngle.ControlType.POSITION_CLOSED_LOOP);
+                            }
                             mTurret.setDesiredAngle(mVals.turretAngle);
+                            mSuperstructureAngle.setIO(0, mVals.superstructureAngle);
                             mShooter.setIO(0, mVals.shooterRPM);
                             mShooter.setState(Shooter.ShooterStates.SPINNING_UP);
-                            // TODO add superstructure angle logic
                         }
 
                         /**
@@ -185,20 +228,30 @@ public class Superstructure implements ISubsystem {
                                 mIntake.stopIntake();
                             }
 
-                            //TODO make sure that superstructure angle is 0
+                            if (mHome.getAngle() != KingMathUtils.applyDeadband(mTurret.getAngle(), 5, 5,
+                                    mHome.getAngle())) {
+                                mIntake.liftToTurn();
+                                if (mIntake.atState()) {
+                                    mTurret.setDesiredAngle(mHome.mAngle);
+                                }
+                            } else {
+                                mIntake.lowerIntake();
+                            }
+
                         }
 
                         /**
                          * defense logic
                          */
-                        if(mCurrentTarget == SuperstructureTarget.DEFENSE) {
+                        if (mCurrentTarget == SuperstructureTarget.DEFENSE) {
                             mIntake.stowIntake();
                             mIntake.stopIntake();
-                            mTurret.setDesiredAngle(mHome.mAngle);
+                            mTurret.setDesiredAngle(mHome.getAngle());
                             mTurret.setControlType(Turret.ControlType.POSITION_CLOSED_LOOP);
                             mShooter.stop();
-
-                            //TODO make sure that superstructure angle is 0
+                            mSuperstructureAngle.setIO(0, 0);
+                            mSuperstructureAngle.setControlType(SuperstructureAngle.ControlType.POSITION_CLOSED_LOOP);
+                            // TODO make sure that superstructure angle is 0
                         }
                     }
 
@@ -212,6 +265,7 @@ public class Superstructure implements ISubsystem {
     private class UserControlValues {
         public boolean flipHomePosition = false;
         public boolean runIntake = false;
+        public boolean enableVision = false;
         public double turretAngle = 0;
         public double superstructureAngle = 0;
         public double shooterRPM = 0;

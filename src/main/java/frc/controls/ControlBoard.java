@@ -89,4 +89,74 @@ public class ControlBoard implements IButtonControlBoard, IJoystickControlBoard 
     public double getBoardX() {
         return mBoard.getX();
     }
+
+    public boolean getYButton() {
+        return mDriveController.getYButton();
+    }
+
+    public boolean getAButton() {
+        return mDriveController.getAButton();
+    }
+
+    public boolean pulseIndex() {
+        return mBoard.getRawButtonPressed(3);
+    }
+
+    public boolean intakeMode() {
+        return mBoard.getRawButton(7);
+    }
+
+    @Override
+    public boolean getAimMode() {
+        // TODO Auto-generated method stub
+        return !mBoard.getRawButton(8) && !mBoard.getRawButton(7);
+    }
+
+    @Override
+    public boolean getIntakeMode() {
+        // TODO Auto-generated method stub
+        return mBoard.getRawButton(7);
+    }
+
+    @Override
+    public boolean getDefenseMode() {
+        // TODO Auto-generated method stub
+        return mBoard.getRawButton(8);
+    }
+
+    @Override
+    public boolean maybeEnableVision() {
+        // TODO Auto-generated method stub
+        return mBoard.getRawButton(15);
+    }
+
+    @Override
+    public boolean maybeRunIntake() {
+        // TODO Auto-generated method stub
+        return mBoard.getRawButton(11);
+    }
+
+    @Override
+    public int getTurretAngle() {
+        // TODO Auto-generated method stub
+        return (int)mBoard.getX()*180;
+    }
+
+    @Override
+    public int getSuperstructureAngle() {
+        // TODO Auto-generated method stub
+        return (int)(Math.abs(mBoard.getY())*50000);
+    }
+
+    @Override
+    public boolean maybeShootBall() {
+        // TODO Auto-generated method stub
+        return mBoard.getRawButton(11);
+    }
+
+    @Override
+    public boolean maybeFlipTurret() {
+        // TODO Auto-generated method stub
+        return !mBoard.getRawButton(1);
+    }
 }

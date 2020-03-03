@@ -3,6 +3,8 @@ package frc.subsystems;
 import com.ctre.phoenix.motorcontrol.ControlMode;
 import com.ctre.phoenix.motorcontrol.FeedbackDevice;
 import com.ctre.phoenix.motorcontrol.can.TalonSRX;
+
+import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import firelib.looper.ILooper;
 import firelib.looper.Loop;
@@ -39,17 +41,18 @@ public class Turret extends TalonServoSubsystem {
         mServoMotor.config_kF(0,2.9416666666666667);
         mServoMotor.configMotionCruiseVelocity(210);
         mServoMotor.configMotionAcceleration(210);
-        mServoMotor.config_kP(0,10);
-        mServoMotor.config_kD(0,1);
-        mServoMotor.config_kI(0,0.023); //4062 ticks to rev
+        mServoMotor.config_kP(0,8);
+        mServoMotor.config_kD(0,10);
+        mServoMotor.config_kI(0,0.0238); //4062 ticks to rev
         mServoMotor.setSensorPhase(true);
-        mServoMotor.configForwardSoftLimitThreshold(4092/2);
-        mServoMotor.configReverseSoftLimitThreshold(-4092/2);
+        mServoMotor.configForwardSoftLimitThreshold(Constants.turretAngleToTick(270));
+        mServoMotor.configReverseSoftLimitThreshold(Constants.turretAngleToTick(-270));
         mServoMotor.configForwardSoftLimitEnable(true);
         mServoMotor.configReverseSoftLimitEnable(true);
 
-        mPIDConstants.kP = 0.02840102*0.75; 
-
+        mPIDConstants.kP = ((double)1/(double)75); 
+        mPIDConstants.kD = 0.0001;
+        mPIDConstants.arbitraryFeedForward = 0.045;
         //mTurretAngleLeft.configSelectedFeedbackSensor(FeedbackDevice.CTRE_MagEncoder_Relative);
         //mTurretAngleRight.configSelectedFeedbackSensor(FeedbackDevice.CTRE_MagEncoder_Relative);
     }
@@ -66,7 +69,7 @@ public class Turret extends TalonServoSubsystem {
      * @param angle angle of the turret
      */
     public synchronized void setDesiredAngle(double angle) {
-        mPeriodicIO.mDesiredAngle =  (angle * Constants.TURRET_TICK_TO_ANGLE);
+        mPeriodicIO.mDesiredAngle =  (Constants.turretAngleToTick(angle));
     }
 
     /**
@@ -109,8 +112,9 @@ public class Turret extends TalonServoSubsystem {
             //TODO maybe add velocity control
             mPIDConstants.currentError = mPeriodicIO.mTargettedAngle;
             double p_Power = -mPIDConstants.currentError*mPIDConstants.kP;
-            double d_Power = -mPIDConstants.kD * (mPIDConstants.currentError-mPIDConstants.lastError)/0.005;
-            setOpenloopPower(p_Power + d_Power);
+            double d_Power = -mPIDConstants.kD * (mPIDConstants.currentError-mPIDConstants.lastError)/(mPIDConstants.currentTime-mPIDConstants.lastError);
+            mPIDConstants.lastError = mPIDConstants.currentError;
+            setOpenloopPower(p_Power + d_Power + (Math.copySign(mPIDConstants.arbitraryFeedForward, p_Power)));
         }
     }
 
@@ -123,15 +127,16 @@ public class Turret extends TalonServoSubsystem {
 
     @Override
     public void updateSmartDashboard() {
-        SmartDashboard.putNumber("Turret Angle", mServoAngle);
+        SmartDashboard.putNumber("Turret Angle", mServoMotor.getSelectedSensorPosition());
         SmartDashboard.putNumber("Turret Speed", mPeriodicIO.mCurrentSpeed);
 
     }
 
     @Override
     public void pollTelemetry() {
-        mServoAngle = (mServoMotor.getSelectedSensorPosition()/4092) * 360;
+        mServoAngle = (mServoMotor.getSelectedSensorPosition()/11.44);
         mPeriodicIO.mCurrentSpeed = mServoMotor.getSelectedSensorVelocity();
+        mPeriodicIO.mTargettedAngle = SmartDashboard.getNumber("camera/x_offset", 0);
 
     }
 
@@ -156,10 +161,12 @@ public class Turret extends TalonServoSubsystem {
                     if (mControlType != ControlType.POSITION_CLOSED_LOOP && mControlType != ControlType.VISION_CLOSED_LOOP) {
                         handleOpenLoop();
                     } else {
+                        mPIDConstants.currentTime = Timer.getFPGATimestamp();
                         handleClosedLoop();
+                        mPIDConstants.lastTime = mPIDConstants.currentTime;
                     }
 
-                    mPeriodicIO.mTargettedAngle = SmartDashboard.getNumber("x_offset", 0);
+
                     //System.out.println(mPeriodicIO.mTargettedAngle);
                 }
             }
@@ -178,8 +185,11 @@ public class Turret extends TalonServoSubsystem {
         public double kP = 0;
         public double kI = 0;
         public double kD = 0;
+        public double arbitraryFeedForward = 0;
         public double currentError = 0;
         public double lastError = 0;
+        public double lastTime = 0;
+        public double currentTime = 0;
     }
 
 }

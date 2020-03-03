@@ -12,9 +12,9 @@ import frc.robot.RobotMap;
 public class Climber implements ISubsystem {
 
     public enum ControlMode {
-        OPEN_LOOP,
-        POSITION_CLOSED_LOOP;
+        OPEN_LOOP, POSITION_CLOSED_LOOP;
     }
+
     private CANSparkMax mClimber;
     private VictorSPX mSlider;
     private ControlMode mControlMode = ControlMode.OPEN_LOOP;
@@ -22,7 +22,8 @@ public class Climber implements ISubsystem {
 
     public static Climber getInstance() {
         if (instance == null) {
-            instance = new Climber(new CANSparkMax(RobotMap.CLIMB, MotorType.kBrushless), new VictorSPX(RobotMap.CLIMB_SLIDER));
+            instance = new Climber(new CANSparkMax(RobotMap.CLIMB, MotorType.kBrushless),
+                    new VictorSPX(RobotMap.CLIMB_SLIDER));
         }
         return instance;
     }
@@ -33,7 +34,7 @@ public class Climber implements ISubsystem {
     }
 
     public synchronized void handleOpenLoop() {
-        
+
     }
 
     public synchronized void handleClosedLoop() {
@@ -55,33 +56,33 @@ public class Climber implements ISubsystem {
     @Override
     public void registerEnabledLoops(ILooper enabledLooper) {
         // TODO Auto-generated method stub
-        enabledLooper.register(new Loop(){
-        
+        enabledLooper.register(new Loop() {
+
             @Override
             public void onStop(double timestamp) {
                 // TODO Auto-generated method stub
-                
+
             }
-        
+
             @Override
             public void onStart(double timestamp) {
                 // TODO Auto-generated method stub
-                
+
             }
-        
+
             @Override
             public void onLoop(double timestamp) {
-                synchronized(Climber.this) {
-                    if(mControlMode == ControlMode.OPEN_LOOP) {
+                synchronized (Climber.this) {
+                    if (mControlMode == ControlMode.OPEN_LOOP) {
                         handleOpenLoop();
                     } else {
                         handleClosedLoop();
                     }
                 }
-                
+
             }
         });
 
     }
-    
+
 }

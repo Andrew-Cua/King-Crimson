@@ -5,13 +5,15 @@ import frc.subsystems.interfaces.MotorInterface;
 import com.ctre.phoenix.motorcontrol.ControlMode;
 import com.ctre.phoenix.motorcontrol.can.TalonSRX;
 
-class TalonWrapper implements MotorInterface{
+class TalonWrapper implements MotorInterface {
     private TalonSRX talon;
     private double currentSpeed;
-    public TalonWrapper(int deviceId){
+
+    public TalonWrapper(int deviceId) {
         this.setSpeed(0);
-        talon=new TalonSRX(deviceId);
+        talon = new TalonSRX(deviceId);
     }
+
     @Override
     public double getCurrentSpeed() {
         return currentSpeed;
@@ -19,8 +21,8 @@ class TalonWrapper implements MotorInterface{
 
     @Override
     public void setSpeed(double speed) {
-        currentSpeed=speed;
-        talon.set(ControlMode.PercentOutput,currentSpeed);
+        currentSpeed = speed;
+        talon.set(ControlMode.PercentOutput, currentSpeed);
     }
 
 }

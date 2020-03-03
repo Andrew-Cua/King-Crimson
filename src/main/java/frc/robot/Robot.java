@@ -5,7 +5,6 @@
 /* the project.                                                               */
 /*----------------------------------------------------------------------------*/
 
-
 // HFOV for logitech webcam 70.42
 // VFOV for logitech webacm 41.94
 package frc.robot;
@@ -13,15 +12,18 @@ package frc.robot;
 import java.util.Arrays;
 
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import edu.wpi.first.wpilibj.Solenoid;
 import edu.wpi.first.wpilibj.TimedRobot;
+import firelib.auto.AutoModeExecutor;
 import firelib.looper.Looper;
 import frc.controls.ControlBoard;
 import frc.subsystems.Indexer;
 import frc.subsystems.Intake;
 import frc.subsystems.Turret;
 import frc.subsystems.Shooter;
+import frc.subsystems.Superstructure;
 import frc.subsystems.Shooter.ShooterStates;
-
+import frc.subsystems.Superstructure.SuperstructureTarget;
 import frc.subsystems.SuperstructureAngle;
 /**
  * The VM is configured to automatically run this class, and to call the
@@ -34,6 +36,7 @@ import frc.subsystems.drivetrain.Drivetrain;
 import frc.subsystems.drivetrain.Drivetrain.ControlType;
 import frc.trajectories.SimpleTrajectory;
 import frc.utils.KingMathUtils;
+import frc.utils.MomentarySwitchBoolean;
 import frc.utils.ToggleBoolean;
 
 public class Robot extends TimedRobot {
@@ -43,15 +46,21 @@ public class Robot extends TimedRobot {
   private Drivetrain mDrivetrain = Drivetrain.getInstance();
   private Indexer mIndexer = Indexer.getInstance();
   private Shooter mShooter = Shooter.getInstance();
- 
   private Turret mTurret = Turret.getInstance();
   private Intake mIntake = Intake.getInstance();
+  private Superstructure mSuperStructure = Superstructure.getInstance();
   private SuperstructureAngle mSuperstructureAngle = SuperstructureAngle.getInstance();
   private SimpleTrajectory mSimpleTrajectory = new SimpleTrajectory();
   private final SubsystemManager mSubsystemManager = new SubsystemManager(
       Arrays.asList(mDrivetrain, mTurret, mShooter, mIndexer, mIntake, mSuperstructureAngle));
   private ToggleBoolean mToggleIntake = new ToggleBoolean(false, true);
+  private ToggleBoolean mToggleVision = new ToggleBoolean(false, true);
+  private ToggleBoolean mSwitchSide = new ToggleBoolean(false, true);
+  private MomentarySwitchBoolean mFlipTurret = new MomentarySwitchBoolean(false, true);
   private boolean mLooperEnabled = false;
+  private Solenoid mLed = new Solenoid(2);
+
+  private AutoModeExecutor mExecutor;
 
   @Override
   public void robotInit() {
@@ -84,17 +93,26 @@ public class Robot extends TimedRobot {
 
   @Override
   public void autonomousPeriodic() {
-    // TODO add logic
+    if (mExecutor != null) {
+      mExecutor.start();
+      mExecutor.run();
+    }
   }
 
   @Override
   public void teleopInit() {
+    if (mExecutor != null) {
+      mExecutor.stop();
+    }
+
+    
     if (!mLooperEnabled) {
       mDisabledLooper.stop();
       mEnabledLooper.start();
       mDrivetrain.setTrajectory(mSimpleTrajectory.getTrajectory());
       mTurret.resetEncoder();
       mIntake.resetEncoder();
+      mIndexer.resetEncoder();
       mDrivetrain.resetGyro();
       mDrivetrain.resetEncoders();
       mLooperEnabled = true;
@@ -104,6 +122,74 @@ public class Robot extends TimedRobot {
 
   @Override
   public void teleopPeriodic() {
+    testControl(); 
+  }
+
+  @Override
+  public void testInit() {
+    // TODO add logic
+  }
+
+  @Override
+  public void testPeriodic() {
+    // TODO add logic
+  }
+
+
+
+  private void competitionControl() {
+    boolean wantsAimMode = mControls.getAimMode();
+    boolean wantsIntakeMode = mControls.getIntakeMode();
+    boolean wantsDefenseMode = mControls.getDefenseMode();
+
+    boolean maybeEnableVision = mControls.maybeEnableVision();
+    boolean maybeFlipTurret = mControls.maybeFlipTurret();
+    boolean maybeRunIntake = mControls.maybeRunIntake();
+    boolean maybeShootBall = mControls.maybeShootBall();
+
+    int turretAngle = mControls.getTurretAngle();
+    int superstructureAngle = mControls.getSuperstructureAngle();
+
+    mFlipTurret.update(maybeFlipTurret);
+    mToggleVision.update(maybeEnableVision);
+
+    if (wantsAimMode) {
+      mSuperStructure.setTarget(Superstructure.SuperstructureTarget.SHOOTING);
+      mSuperStructure.setShooterRPM(3000);
+    } else if (wantsIntakeMode) {
+      mSuperStructure.setTarget(Superstructure.SuperstructureTarget.INTAKING);
+      mSuperStructure.setShooterRPM(0);
+    } else if (wantsDefenseMode) {
+      mSuperStructure.setTarget(Superstructure.SuperstructureTarget.DEFENSE);
+      mSuperStructure.setShooterRPM(0);
+    } else {
+      mSuperStructure.setTarget(Superstructure.SuperstructureTarget.DEFENSE);
+    }
+
+    if (mFlipTurret.getCurrentState() && !wantsDefenseMode) {
+      mSuperStructure.flipTurret();
+    }
+
+    if (mToggleVision.getCurrentState() && wantsAimMode) {
+      mSuperStructure.enableVision(mToggleVision.getCurrentState());
+    } else {
+      mSuperStructure.enableVision(false);
+    }
+
+    if (wantsAimMode && !mToggleVision.getCurrentState()) {
+      System.out.println("Turret: " + turretAngle);
+      System.out.println("Superstructure Angle" + superstructureAngle);
+    }
+
+    if (wantsIntakeMode && maybeRunIntake) {
+      mSuperStructure.runIntake(maybeRunIntake);
+    } else {
+      mSuperStructure.runIntake(false);
+    }
+
+  }
+
+  private void testControl() {
     double throttle = KingMathUtils.clampD(mControls.getYThrottle(), 0.075);
     double rot = KingMathUtils.clampD(mControls.getXThrottle(), 0.075);
 
@@ -116,31 +202,43 @@ public class Robot extends TimedRobot {
     boolean runIntake = mControls.runIntake();
     boolean raiseSuperstructure = mControls.raiseAngle();
     boolean lowerSuperstructure = mControls.lowerAngle();
+    boolean moveIndex = mControls.pulseIndex();
+    boolean intakeMode = mControls.intakeMode();
     mToggleIntake.update(mControls.toggleIntake());
-    SmartDashboard.putNumber("X", mControls.getBoardX());
+    mToggleVision.update(mControls.enableVisionTracking());
+    mSwitchSide.update(mControls.getAButton());
 
     if (wantsShot) {
-      mShooter.setIO(-1.2 * throttle, /*13750 * -throttle*/ 2500*3);
-      mShooter.setState(Shooter.ShooterStates.OPEN_LOOP);
+      mShooter.setIO(0.7, 3100 * 3);
+      mShooter.setState(Shooter.ShooterStates.SPINNING_UP);
       if (mShooter.atSpeed()) {
-        mIndexer.setIO(0.75);
+        mIndexer.setIO(1,0.65);
       } else {
-        mIndexer.setIO(0);
+        mIndexer.setIO(0,0);
       }
     } else {
       mShooter.setIO(0, 0);
       mShooter.setState(Shooter.ShooterStates.IDLE);
-      mIndexer.setIO(-mControls.getRightY());
+      mIndexer.setIO(1,-mControls.getRightY());
+      mDrivetrain.setIO(KingMathUtils.logit(-throttle * 0.7), -KingMathUtils.turnExp(rot * 0.5));
     }
 
-    if (wanstToTurnTurretLeft) {
-      mTurret.setOpenloopPower(-1);
-      mTurret.setControlType(Turret.ControlType.OPEN_LOOP);
-    } else if (wantsToTurnTurretRight) {
-      mTurret.setOpenloopPower(1);
-      mTurret.setControlType(Turret.ControlType.OPEN_LOOP);
+    // if (wanstToTurnTurretLeft) {
+    //   mTurret.setOpenloopPower(-0.065);
+    //   mTurret.setControlType(Turret.ControlType.OPEN_LOOP);
+    // } else if (wantsToTurnTurretRight) {
+    //   mTurret.setOpenloopPower(0.065);
+    //   mTurret.setControlType(Turret.ControlType.OPEN_LOOP);
+    // } else {
+    //   mTurret.setOpenloopPower(0);
+    // }
+
+    if (mSwitchSide.getCurrentState()) {
+    mTurret.setControlType(Turret.ControlType.POSITION_CLOSED_LOOP);
+    mTurret.setDesiredAngle(180);
     } else {
-      mTurret.setOpenloopPower(0);
+    mTurret.setControlType(Turret.ControlType.POSITION_CLOSED_LOOP);
+    mTurret.setDesiredAngle(0);
     }
 
     if (mToggleIntake.getCurrentState()) {
@@ -150,43 +248,49 @@ public class Robot extends TimedRobot {
     }
 
     if (runIntake) {
-      mIntake.runIntake();
-      mIndexer.setIO(1);
+      mIntake.setIntakeSpeed(1);
+      mIndexer.setIO(0.7,0.3);
     } else {
       mIntake.stopIntake();
     }
 
-    if (wantsToTrackTarget) {
+    if (mToggleVision.getCurrentState()) {
       mTurret.setControlType(Turret.ControlType.VISION_CLOSED_LOOP);
-    }
-
-    if (raiseSuperstructure) {
-      mSuperstructureAngle.setIO(0.5);
-    } else if (lowerSuperstructure) {
-      mSuperstructureAngle.setIO(-0.5);
+      mSuperstructureAngle.setControlType(SuperstructureAngle.ControlType.VISION_CLOSED_LOOP);
+      mLed.set(true);
     } else {
-      mSuperstructureAngle.setIO(0);
+      mTurret.setControlType(Turret.ControlType.POSITION_CLOSED_LOOP);
+      mSuperstructureAngle.setControlType(SuperstructureAngle.ControlType.OPEN_LOOP);
+      mLed.set(false);
     }
 
-    if (!wantsShot) {
-      mDrivetrain.setIO(KingMathUtils.logit(-throttle * 0.7), -KingMathUtils.turnExp(rot * 0.5));
 
+    if (intakeMode) {
+      mSuperstructureAngle.setControlType(SuperstructureAngle.ControlType.POSITION_CLOSED_LOOP);
+      mSuperstructureAngle.setIO(0,390000);
     } else {
-      mDrivetrain.setIO(0, 0);
+      if (raiseSuperstructure) {
+        mSuperstructureAngle.setControlType(SuperstructureAngle.ControlType.OPEN_LOOP);
+        mSuperstructureAngle.setIO(0.5, 0);
+      } else if (lowerSuperstructure) {
+        mSuperstructureAngle.setIO(-0.5, 0);
+      } else {
+        mSuperstructureAngle.setIO(0, 0);
+      }
     }
 
-    SmartDashboard.putBoolean("Toggle", mToggleIntake.getCurrentState());
-    SmartDashboard.putBoolean("LooperRunning",isEnabled());
-  }
+    
 
-  @Override
-  public void testInit() {
-    // TODO add logic
-  }
+    
+    if (moveIndex) {
+      mIndexer.incrementPos();
+      System.out.println(moveIndex);
+      
+    }
 
-  @Override
-  public void testPeriodic() {
-    // TODO add logic
+    SmartDashboard.putNumber("Joystick",mControls.getBoardX());
+    mDrivetrain.setIO(KingMathUtils.logit(-throttle * 0.7), -KingMathUtils.turnExp(rot * 0.5));
   }
+    
 
 }
