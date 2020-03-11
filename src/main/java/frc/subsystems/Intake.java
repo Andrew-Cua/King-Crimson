@@ -25,6 +25,7 @@ public class Intake extends StateSubsystem<IntakeState> {
     private VictorSPX mIntake;
     private double mCurrentAngle = 0;
     private static Intake instance;
+    private int mAngleAdjust = 0;
 
     public static Intake getInstance() {
         if (instance == null) {
@@ -72,6 +73,10 @@ public class Intake extends StateSubsystem<IntakeState> {
 
     public synchronized void resetEncoder() {
         mIntakeAngle.setSelectedSensorPosition(0);
+    }
+
+    public synchronized void setAngleAjust(int angle) {
+        mAngleAdjust = angle;
     }
 
     /**

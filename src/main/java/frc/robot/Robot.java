@@ -11,11 +11,18 @@ package frc.robot;
 
 import java.util.Arrays;
 
+import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj.Solenoid;
 import edu.wpi.first.wpilibj.TimedRobot;
 import firelib.auto.AutoModeExecutor;
+import firelib.auto.actions.actionrunners.ActionRunnerBase;
 import firelib.looper.Looper;
+import frc.auto.modes.InitiationMode;
+import frc.auto.modes.SimpleMode;
+import frc.auto.modes.ThreeBallCenterMode;
+import frc.auto.modes.ThreeBallLeft;
+import frc.auto.modes.ThreeBallRight;
 import frc.controls.ControlBoard;
 import frc.subsystems.Indexer;
 import frc.subsystems.Intake;
@@ -25,6 +32,8 @@ import frc.subsystems.Superstructure;
 import frc.subsystems.Shooter.ShooterStates;
 import frc.subsystems.Superstructure.SuperstructureTarget;
 import frc.subsystems.SuperstructureAngle;
+import edu.wpi.cscore.VideoSource;
+import edu.wpi.first.cameraserver.*;
 /**
  * The VM is configured to automatically run this class, and to call the
  * functions corresponding to each mode, as described in the TimedRobot
@@ -34,6 +43,7 @@ import frc.subsystems.SuperstructureAngle;
  */
 import frc.subsystems.drivetrain.Drivetrain;
 import frc.subsystems.drivetrain.Drivetrain.ControlType;
+import frc.trajectories.BackwardsTrajectory;
 import frc.trajectories.SimpleTrajectory;
 import frc.utils.KingMathUtils;
 import frc.utils.MomentarySwitchBoolean;
@@ -51,8 +61,9 @@ public class Robot extends TimedRobot {
   private Superstructure mSuperStructure = Superstructure.getInstance();
   private SuperstructureAngle mSuperstructureAngle = SuperstructureAngle.getInstance();
   private SimpleTrajectory mSimpleTrajectory = new SimpleTrajectory();
+  private BackwardsTrajectory mBackwardsTrajectory = new BackwardsTrajectory();
   private final SubsystemManager mSubsystemManager = new SubsystemManager(
-      Arrays.asList(mDrivetrain, mTurret, mShooter, mIndexer, mIntake, mSuperstructureAngle));
+      Arrays.asList(mDrivetrain, mTurret, mShooter, mIndexer, mIntake, mSuperstructureAngle, mSuperStructure));
   private ToggleBoolean mToggleIntake = new ToggleBoolean(false, true);
   private ToggleBoolean mToggleVision = new ToggleBoolean(false, true);
   private ToggleBoolean mSwitchSide = new ToggleBoolean(false, true);
@@ -61,12 +72,20 @@ public class Robot extends TimedRobot {
   private Solenoid mLed = new Solenoid(2);
 
   private AutoModeExecutor mExecutor;
+  private ActionRunnerBase mRunner;
 
+  private SendableChooser<ActionRunnerBase> mAuto = new SendableChooser<ActionRunnerBase>(); 
   @Override
   public void robotInit() {
     mSubsystemManager.registerEnabledLoops(mEnabledLooper);
     mSubsystemManager.registerDisabledLoops(mDisabledLooper);
     mSimpleTrajectory.generateTrajectory();
+    mBackwardsTrajectory.generateTrajectory();
+    mAuto.addOption("Left", new ThreeBallLeft(mBackwardsTrajectory.getTrajectory()));
+    mAuto.addOption("Center", new ThreeBallCenterMode(mBackwardsTrajectory.getTrajectory()));
+    mAuto.addOption("Right", new ThreeBallRight(mBackwardsTrajectory.getTrajectory()));
+    CameraServer.getInstance().startAutomaticCapture();
+    
 
   }
 
@@ -75,6 +94,7 @@ public class Robot extends TimedRobot {
     mEnabledLooper.stop();
     mDisabledLooper.start();
     mLooperEnabled = false;
+    SmartDashboard.putData(mAuto);
   }
 
   @Override
@@ -82,52 +102,48 @@ public class Robot extends TimedRobot {
     if (!mLooperEnabled) {
       mDisabledLooper.stop();
       mEnabledLooper.start();
-      mDrivetrain.setTrajectory(mSimpleTrajectory.getTrajectory());
       mTurret.resetEncoder();
       mIntake.resetEncoder();
       mDrivetrain.resetGyro();
       mDrivetrain.resetEncoders();
       mLooperEnabled = true;
+    }
+    mRunner = new InitiationMode(mBackwardsTrajectory.getTrajectory());
+    mExecutor = new AutoModeExecutor(mRunner);
+    if (mExecutor != null) {
+      mExecutor.start();
     }
   }
 
   @Override
   public void autonomousPeriodic() {
-    if (mExecutor != null) {
-      mExecutor.start();
-      mExecutor.run();
-    }
+    
   }
 
   @Override
   public void teleopInit() {
-    if (mExecutor != null) {
-      mExecutor.stop();
-    }
 
-    
     if (!mLooperEnabled) {
       mDisabledLooper.stop();
       mEnabledLooper.start();
-      mDrivetrain.setTrajectory(mSimpleTrajectory.getTrajectory());
-      mTurret.resetEncoder();
-      mIntake.resetEncoder();
-      mIndexer.resetEncoder();
-      mDrivetrain.resetGyro();
-      mDrivetrain.resetEncoders();
       mLooperEnabled = true;
+    }
+
+    if (mExecutor != null) {
+      mExecutor.stop();
     }
 
   }
 
   @Override
   public void teleopPeriodic() {
-    testControl(); 
+    competitionControl();
   }
 
   @Override
   public void testInit() {
     // TODO add logic
+    mSuperstructureAngle.resetEncoder();
   }
 
   @Override
@@ -135,27 +151,30 @@ public class Robot extends TimedRobot {
     // TODO add logic
   }
 
-
-
   private void competitionControl() {
+    double throttle = KingMathUtils.clampD(mControls.getYThrottle(), 0.075);
+    double rot = KingMathUtils.clampD(mControls.getXThrottle(), 0.075);
     boolean wantsAimMode = mControls.getAimMode();
     boolean wantsIntakeMode = mControls.getIntakeMode();
     boolean wantsDefenseMode = mControls.getDefenseMode();
+    boolean wantsTurbo = mControls.getTurboButton();
 
     boolean maybeEnableVision = mControls.maybeEnableVision();
     boolean maybeFlipTurret = mControls.maybeFlipTurret();
     boolean maybeRunIntake = mControls.maybeRunIntake();
     boolean maybeShootBall = mControls.maybeShootBall();
+    boolean maybeUnjamShooter = mControls.maybeUnjamShooter();
 
     int turretAngle = mControls.getTurretAngle();
     int superstructureAngle = mControls.getSuperstructureAngle();
+    int intakeAngle = mControls.getIntakeAngle();
 
     mFlipTurret.update(maybeFlipTurret);
     mToggleVision.update(maybeEnableVision);
 
     if (wantsAimMode) {
       mSuperStructure.setTarget(Superstructure.SuperstructureTarget.SHOOTING);
-      mSuperStructure.setShooterRPM(3000);
+      mSuperStructure.setShooterRPM(3000 * 3);
     } else if (wantsIntakeMode) {
       mSuperStructure.setTarget(Superstructure.SuperstructureTarget.INTAKING);
       mSuperStructure.setShooterRPM(0);
@@ -172,13 +191,21 @@ public class Robot extends TimedRobot {
 
     if (mToggleVision.getCurrentState() && wantsAimMode) {
       mSuperStructure.enableVision(mToggleVision.getCurrentState());
+      mLed.set(true);
     } else {
       mSuperStructure.enableVision(false);
+      mLed.set(false);
     }
 
     if (wantsAimMode && !mToggleVision.getCurrentState()) {
-      System.out.println("Turret: " + turretAngle);
-      System.out.println("Superstructure Angle" + superstructureAngle);
+      mSuperStructure.setSuperstructureAngle(superstructureAngle);
+      mSuperStructure.setTurretAngle(turretAngle);
+    }
+
+    if (wantsAimMode && maybeShootBall) {
+      mSuperStructure.maybeShootBalls();
+    } else if (wantsAimMode && !maybeShootBall) {
+      mSuperStructure.stopShootingBalls();
     }
 
     if (wantsIntakeMode && maybeRunIntake) {
@@ -187,6 +214,19 @@ public class Robot extends TimedRobot {
       mSuperStructure.runIntake(false);
     }
 
+    if (wantsIntakeMode) {
+      mSuperStructure.setIntakeAngle(intakeAngle);
+      System.out.println(intakeAngle);
+    }
+
+    if (maybeUnjamShooter) {
+      mIndexer.decrementPos();
+    }
+    if (wantsTurbo) {
+      mDrivetrain.setIO(KingMathUtils.logit(-throttle), -KingMathUtils.turnExp(rot * 0.7));
+    } else {
+      mDrivetrain.setIO(KingMathUtils.logit(-throttle * 0.7), -KingMathUtils.turnExp(rot * 0.5));
+    }
   }
 
   private void testControl() {
@@ -212,33 +252,33 @@ public class Robot extends TimedRobot {
       mShooter.setIO(0.7, 3100 * 3);
       mShooter.setState(Shooter.ShooterStates.SPINNING_UP);
       if (mShooter.atSpeed()) {
-        mIndexer.setIO(1,0.65);
+        mIndexer.setIO(1, 0.65);
       } else {
-        mIndexer.setIO(0,0);
+        mIndexer.setIO(0, 0);
       }
     } else {
       mShooter.setIO(0, 0);
       mShooter.setState(Shooter.ShooterStates.IDLE);
-      mIndexer.setIO(1,-mControls.getRightY());
+      mIndexer.setIO(0, -mControls.getRightY());
       mDrivetrain.setIO(KingMathUtils.logit(-throttle * 0.7), -KingMathUtils.turnExp(rot * 0.5));
     }
 
     // if (wanstToTurnTurretLeft) {
-    //   mTurret.setOpenloopPower(-0.065);
-    //   mTurret.setControlType(Turret.ControlType.OPEN_LOOP);
+    // mTurret.setOpenloopPower(-0.065);
+    // mTurret.setControlType(Turret.ControlType.OPEN_LOOP);
     // } else if (wantsToTurnTurretRight) {
-    //   mTurret.setOpenloopPower(0.065);
-    //   mTurret.setControlType(Turret.ControlType.OPEN_LOOP);
+    // mTurret.setOpenloopPower(0.065);
+    // mTurret.setControlType(Turret.ControlType.OPEN_LOOP);
     // } else {
-    //   mTurret.setOpenloopPower(0);
+    // mTurret.setOpenloopPower(0);
     // }
 
     if (mSwitchSide.getCurrentState()) {
-    mTurret.setControlType(Turret.ControlType.POSITION_CLOSED_LOOP);
-    mTurret.setDesiredAngle(180);
+      mTurret.setControlType(Turret.ControlType.POSITION_CLOSED_LOOP);
+      mTurret.setDesiredAngle(180);
     } else {
-    mTurret.setControlType(Turret.ControlType.POSITION_CLOSED_LOOP);
-    mTurret.setDesiredAngle(0);
+      mTurret.setControlType(Turret.ControlType.POSITION_CLOSED_LOOP);
+      mTurret.setDesiredAngle(0);
     }
 
     if (mToggleIntake.getCurrentState()) {
@@ -249,7 +289,7 @@ public class Robot extends TimedRobot {
 
     if (runIntake) {
       mIntake.setIntakeSpeed(1);
-      mIndexer.setIO(0.7,0.3);
+      mIndexer.setIO(0.7, 0.3);
     } else {
       mIntake.stopIntake();
     }
@@ -264,10 +304,9 @@ public class Robot extends TimedRobot {
       mLed.set(false);
     }
 
-
     if (intakeMode) {
       mSuperstructureAngle.setControlType(SuperstructureAngle.ControlType.POSITION_CLOSED_LOOP);
-      mSuperstructureAngle.setIO(0,390000);
+      mSuperstructureAngle.setIO(0, 390000);
     } else {
       if (raiseSuperstructure) {
         mSuperstructureAngle.setControlType(SuperstructureAngle.ControlType.OPEN_LOOP);
@@ -279,18 +318,15 @@ public class Robot extends TimedRobot {
       }
     }
 
-    
-
-    
     if (moveIndex) {
       mIndexer.incrementPos();
       System.out.println(moveIndex);
-      
+
     }
 
-    SmartDashboard.putNumber("Joystick",mControls.getBoardX());
+    SmartDashboard.putNumber("Joystick", mControls.getBoardX());
     mDrivetrain.setIO(KingMathUtils.logit(-throttle * 0.7), -KingMathUtils.turnExp(rot * 0.5));
+
   }
-    
 
 }

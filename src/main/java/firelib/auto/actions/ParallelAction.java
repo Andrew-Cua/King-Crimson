@@ -1,13 +1,14 @@
 package firelib.auto.actions;
 
 import java.util.ArrayList;
+import java.util.List;
 
 public class ParallelAction implements IAction {
 
     private final ArrayList<IAction> mActions;
 
-    public ParallelAction(ArrayList<IAction> actions) {
-        mActions = actions;
+    public ParallelAction(List<IAction> actions) {
+        mActions = new ArrayList<>(actions);
     }
     @Override
     public void init() {

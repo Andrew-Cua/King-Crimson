@@ -87,7 +87,7 @@ public class ControlBoard implements IButtonControlBoard, IJoystickControlBoard 
     }
 
     public double getBoardX() {
-        return mBoard.getX();
+        return mBoard.getRawAxis(mBoard.getXChannel());
     }
 
     public boolean getYButton() {
@@ -107,7 +107,7 @@ public class ControlBoard implements IButtonControlBoard, IJoystickControlBoard 
     }
 
     @Override
-    public boolean getAimMode() {
+    public boolean getDefenseMode() {
         // TODO Auto-generated method stub
         return !mBoard.getRawButton(8) && !mBoard.getRawButton(7);
     }
@@ -115,13 +115,13 @@ public class ControlBoard implements IButtonControlBoard, IJoystickControlBoard 
     @Override
     public boolean getIntakeMode() {
         // TODO Auto-generated method stub
-        return mBoard.getRawButton(7);
+        return mBoard.getRawButton(8);
     }
 
     @Override
-    public boolean getDefenseMode() {
+    public boolean getAimMode() {
         // TODO Auto-generated method stub
-        return mBoard.getRawButton(8);
+        return mBoard.getRawButton(7);
     }
 
     @Override
@@ -139,13 +139,13 @@ public class ControlBoard implements IButtonControlBoard, IJoystickControlBoard 
     @Override
     public int getTurretAngle() {
         // TODO Auto-generated method stub
-        return (int)mBoard.getX()*180;
+        return (int)(mBoard.getX()*180);
     }
 
     @Override
     public int getSuperstructureAngle() {
         // TODO Auto-generated method stub
-        return (int)(Math.abs(mBoard.getY())*50000);
+        return (int)(Math.abs(mBoard.getY())*450000);
     }
 
     @Override
@@ -159,4 +159,19 @@ public class ControlBoard implements IButtonControlBoard, IJoystickControlBoard 
         // TODO Auto-generated method stub
         return !mBoard.getRawButton(1);
     }
+
+    @Override
+    public boolean getTurboButton() {
+        // TODO Auto-generated method stub
+        return mBoard.getRawButton(4);
+    }
+
+    public int getIntakeAngle() {
+        return (int)(mBoard.getZ()*10000);
+    }
+
+    public boolean maybeUnjamShooter() {
+        return mBoard.getRawButtonPressed(3);
+    }
+
 }

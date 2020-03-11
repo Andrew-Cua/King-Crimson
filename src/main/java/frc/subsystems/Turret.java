@@ -10,6 +10,7 @@ import firelib.looper.ILooper;
 import firelib.looper.Loop;
 import firelib.subsystem.TalonServoSubsystem;
 import frc.robot.Constants;
+import frc.utils.Limelight;
 
 /**
  * implementation to control the turret on the robot
@@ -111,8 +112,8 @@ public class Turret extends TalonServoSubsystem {
         } else if(mControlType == ControlType.VISION_CLOSED_LOOP) {
             //TODO maybe add velocity control
             mPIDConstants.currentError = mPeriodicIO.mTargettedAngle;
-            double p_Power = -mPIDConstants.currentError*mPIDConstants.kP;
-            double d_Power = -mPIDConstants.kD * (mPIDConstants.currentError-mPIDConstants.lastError)/(mPIDConstants.currentTime-mPIDConstants.lastError);
+            double p_Power = mPIDConstants.currentError*mPIDConstants.kP;
+            double d_Power = mPIDConstants.kD * (mPIDConstants.currentError-mPIDConstants.lastError)/(mPIDConstants.currentTime-mPIDConstants.lastError);
             mPIDConstants.lastError = mPIDConstants.currentError;
             setOpenloopPower(p_Power + d_Power + (Math.copySign(mPIDConstants.arbitraryFeedForward, p_Power)));
         }
@@ -136,7 +137,7 @@ public class Turret extends TalonServoSubsystem {
     public void pollTelemetry() {
         mServoAngle = (mServoMotor.getSelectedSensorPosition()/11.44);
         mPeriodicIO.mCurrentSpeed = mServoMotor.getSelectedSensorVelocity();
-        mPeriodicIO.mTargettedAngle = SmartDashboard.getNumber("camera/x_offset", 0);
+        mPeriodicIO.mTargettedAngle = Limelight.getInstance().getHorizontalAngleError();
 
     }
 

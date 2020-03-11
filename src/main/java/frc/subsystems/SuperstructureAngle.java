@@ -9,6 +9,7 @@ import firelib.looper.ILooper;
 import firelib.looper.Loop;
 import firelib.subsystem.ISubsystem;
 import frc.robot.RobotMap;
+import frc.utils.Limelight;
 
 public class SuperstructureAngle implements ISubsystem {
 
@@ -43,7 +44,7 @@ public class SuperstructureAngle implements ISubsystem {
         mAngleLeft.configSelectedFeedbackSensor(FeedbackDevice.CTRE_MagEncoder_Relative);
         mAngleRight.configSelectedFeedbackSensor(FeedbackDevice.CTRE_MagEncoder_Relative);
         mAngleLeft.config_kF(0, 0.08525);
-        mAngleLeft.config_kF(0, 0.09234567654);
+        mAngleLeft.config_kP(0, 0.09234567654);
         mAngleLeft.configMotionCruiseVelocity(7000);
         mAngleLeft.configMotionAcceleration(14000);
         mAngleLeft.configForwardSoftLimitThreshold(524000);
@@ -59,6 +60,14 @@ public class SuperstructureAngle implements ISubsystem {
 
     public synchronized void setControlType(ControlType type) {
         mControlType = type;
+    }
+
+    public synchronized void resetEncoder() {
+        mAngleLeft.setSelectedSensorPosition(0);
+    }
+
+    public synchronized int getAngle() {
+        return (int)mPeriodicIO.currentAngle;
     }
 
     private synchronized void handleOpenLoop() {
@@ -91,8 +100,8 @@ public class SuperstructureAngle implements ISubsystem {
     @Override
     public void pollTelemetry() {
         // TODO Auto-generated method stub
-        mPeriodicIO.camaraAngleOffset = SmartDashboard.getNumber("camera/y_offset", 0);
-
+        mPeriodicIO.camaraAngleOffset = Limelight.getInstance().getVerticleAngleError();
+        mPeriodicIO.currentAngle = mAngleLeft.getSelectedSensorPosition() + mAngleRight.getSelectedSensorPosition()/2;
     }
 
     @Override

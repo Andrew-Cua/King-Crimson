@@ -86,6 +86,10 @@ public class Drivetrain implements ISubsystem {
         mPeriodicIO.mDemandedRot = demandedRot;
     }
 
+    public synchronized boolean doneWithTrajectory() {
+        return mTrajectoryTime + mTimeStamp >= mTrajectory.getTotalTimeSeconds() + mTimeStamp;
+    }
+
     public synchronized void setTrajectory(Trajectory traj) {
         mTrajectory = traj;
     }
@@ -169,6 +173,7 @@ public class Drivetrain implements ISubsystem {
         SmartDashboard.putBoolean("Drivetrain State", mControlType == ControlType.LONG_SQUAD);
         SmartDashboard.putNumber("Left Drivetrain Speed", mPeriodicIO.mLeftVel);
         SmartDashboard.putNumber("Right Drivetrain Speed", mPeriodicIO.mRightVel);
+        SmartDashboard.putNumber("RobotAngle" ,-mGyro.getYaw());
     }
 
     @Override

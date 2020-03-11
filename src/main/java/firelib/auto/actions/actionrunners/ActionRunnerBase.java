@@ -4,7 +4,6 @@ import firelib.auto.actions.IAction;
 
 public abstract class ActionRunnerBase {
     protected boolean isActive = false;
-
     public abstract void routine();
     public void run() {
         isActive = true;

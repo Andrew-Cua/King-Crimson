@@ -15,6 +15,7 @@ public interface IButtonControlBoard {
     public boolean getAimMode();
     public boolean getIntakeMode();
     public boolean getDefenseMode();
+    public boolean getTurboButton();
 
     public boolean maybeEnableVision();
     public boolean maybeRunIntake();

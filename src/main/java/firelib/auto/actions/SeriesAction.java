@@ -1,14 +1,15 @@
 package firelib.auto.actions;
 
 import java.util.ArrayList;
+import java.util.List;
 
 public class SeriesAction implements IAction {
 
     private IAction mCurrentAction;
     private ArrayList<IAction> mActions;
 
-    public SeriesAction(ArrayList<IAction> actions) {
-        mActions = actions;
+    public SeriesAction(List<IAction> actions) {
+        mActions = new ArrayList<>(actions);
     }
     @Override
     public void init() {

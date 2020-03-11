@@ -1,20 +1,17 @@
 package frc.subsystems;
 
-import firelib.looper.ILooper;
-
-import firelib.looper.Loop;
-import firelib.subsystem.ISubsystem;
-import frc.robot.RobotMap;
-import frc.utils.MomentarySwitchBoolean;
-
 import com.ctre.phoenix.motorcontrol.ControlMode;
 import com.ctre.phoenix.motorcontrol.FeedbackDevice;
-import com.ctre.phoenix.motorcontrol.InvertType;
 import com.ctre.phoenix.motorcontrol.can.TalonSRX;
 import com.ctre.phoenix.motorcontrol.can.VictorSPX;
 
 import edu.wpi.first.wpilibj.DigitalInput;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import firelib.looper.ILooper;
+import firelib.looper.Loop;
+import firelib.subsystem.ISubsystem;
+import frc.robot.RobotMap;
+import frc.utils.MomentarySwitchBoolean;
 
 public class Indexer implements ISubsystem {
     public enum ControlType {
@@ -33,7 +30,7 @@ public class Indexer implements ISubsystem {
     private PeriodicIO mPeriodicIO = new PeriodicIO();
     private static Indexer instance;
     private DigitalInput mBeamBreakOne = new DigitalInput(0);
-    private DigitalInput mBeamBreakTwo = new DigitalInput(0);
+    private DigitalInput mBeamBreakTwo = new DigitalInput(1);
     private MomentarySwitchBoolean mBallEntered = new MomentarySwitchBoolean(false, false);
     private MomentarySwitchBoolean mBallExited = new MomentarySwitchBoolean(false, false);
 
@@ -73,6 +70,10 @@ public class Indexer implements ISubsystem {
         mControlType = type;
     }
 
+    public synchronized void setMode(Mode mode) {
+        mMode = mode;
+    }
+
     public synchronized void setPos(int ticks) {
         mLeftBelt.set(ControlMode.MotionMagic, ticks);
     }
@@ -82,19 +83,27 @@ public class Indexer implements ISubsystem {
         mPeriodicIO.beltPower = beltPower;
     }
 
+    public synchronized int getNumBalls() {
+        return mPeriodicIO.ballsInTube;
+    }
+
+    public synchronized void setBallsInTube(int balls) {
+        mPeriodicIO.ballsInTube = balls;
+    }
+
     /**
      * incrememnts the position of the belts of indexer by 8000 ticks or 4 inches
      */
     public synchronized void incrementPos() {
-        mPeriodicIO.desiredPositon += 8000;
+        mPeriodicIO.desiredPositon += 6000;
 
     }
 
     /**
-     * decrements the position of the belts of indexer by 8000 ticks or 4 inches
+     * decrements the position of the belts of indexer by 2000 ticks or 1 inche
      */
     public synchronized void decrementPos() {
-        mPeriodicIO.desiredPositon -= 8000;
+        mPeriodicIO.desiredPositon -= 3000;
     }
 
     /**
@@ -123,6 +132,7 @@ public class Indexer implements ISubsystem {
         SmartDashboard.putNumber("Indexer/DesiredPosition", mPeriodicIO.desiredPositon);
         SmartDashboard.putBoolean("Indexer/BallEntered", mBeamBreakOne.get());
         SmartDashboard.putBoolean("Indexer/BallExited", mBeamBreakTwo.get());
+
         SmartDashboard.putNumber("Indexer/BallsInTube", mPeriodicIO.ballsInTube);
     }
 
@@ -152,16 +162,45 @@ public class Indexer implements ISubsystem {
             public void onLoop(double timestamp) {
                 // TODO Auto-generated method stub
                 synchronized (Indexer.this) {
+                    if (mMode == Mode.INTAKEING) {
+                        mControlType = ControlType.POSITION_CLOSED_LOOP;
+                    } else {
+                        mControlType = ControlType.OPEN_LOOP;
+                    }
+
+                    boolean shooterBroken = mBeamBreakTwo.get();
                     mBallEntered.update(mBeamBreakOne.get());
-                    mBallExited.update(mBeamBreakTwo.get());
+                    mBallExited.update(shooterBroken);
 
                     if (mBallEntered.getCurrentState()) {
-                        mPeriodicIO.ballsInTube++;
+                        if (mMode == Mode.INTAKEING) {
+                            mPeriodicIO.ballsInTube++;
+                            if (mPeriodicIO.ballsInTube > 3) {
+                                mPeriodicIO.ballsInTube = 3;
+                            }
+                            incrementPos();
+                        } else if (mMode == Mode.SHOOTING) {
+                            // this shouldn't trigger when in shooting mode
+                        }
                     }
 
                     if (mBallExited.getCurrentState()) {
-                        mPeriodicIO.ballsInTube--;
+                        if (mMode == Mode.INTAKEING) {
+                            decrementPos();
+                        } else if (mMode == Mode.SHOOTING) {
+                            mPeriodicIO.ballsInTube--;
+                            if (mPeriodicIO.ballsInTube < 0) {
+                                mPeriodicIO.ballsInTube = 0;
+                            }
+                        }
                     }
+
+                    if (mPeriodicIO.ballsInTube == 0 && mLeftBelt.getSelectedSensorPosition() != 0 & mMode == Mode.SHOOTING) {
+                        mPeriodicIO.desiredPositon = 0;
+                        resetEncoder();
+                        
+                    }
+
                     if (mControlType == ControlType.OPEN_LOOP) {
                         handleOpenLoop();
                     } else {

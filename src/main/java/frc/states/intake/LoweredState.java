@@ -11,7 +11,7 @@ public class LoweredState extends IntakeState {
 
     @Override
     public double intakeSpeed() {
-        return 0.4;
+        return 1;
     }
 
     @Override
