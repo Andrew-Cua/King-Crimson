@@ -11,7 +11,6 @@ import frc.auto.actions.EnableVisionTrackingAction;
 import frc.auto.actions.InstantAction;
 import frc.auto.actions.ReadyAimModeAction;
 import frc.auto.actions.ShootBallsAction;
-import frc.auto.actions.interfaces.InstantActionRunner;
 import frc.subsystems.Superstructure;
 
 public class ThreeBallCenterMode extends ActionRunnerBase {
@@ -25,8 +24,9 @@ public class ThreeBallCenterMode extends ActionRunnerBase {
         //back up and aim up to get goal in line of sight
         runAction(new ParallelAction(Arrays.asList(new DriveTrajectoryAction(mTraj),new ReadyAimModeAction(0, 250000,2700))));
         runAction(new SeriesAction(Arrays.asList(new EnableVisionTrackingAction(), new ShootBallsAction())));
-        //make sure its in defense just to be sure
+        //make sure its in defense just to be sure and vision is off
         runAction(new InstantAction(() -> {Superstructure.getInstance().setTarget(Superstructure.SuperstructureTarget.DEFENSE);}));
+        runAction(new InstantAction(() -> {Superstructure.getInstance().enableVision(false);}));
 
     }
     
